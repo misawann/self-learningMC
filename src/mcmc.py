@@ -3,7 +3,7 @@ import numpy as np
 import tqdm
 
 
-class Ising2D:
+class MCIsing2D:
     def __init__(self, Lx: int, Ly: int, J: float, beta: float, h: float) -> None:
         self.Lx = Lx
         self.Ly = Ly
