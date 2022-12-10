@@ -138,37 +138,34 @@ class Ising2D:
 @click.option("--j", default=1)
 @click.option("--lx", default=10)
 @click.option("--ly", default=10)
-@click.option("--output_dir", required=True)
 @click.option("--lr", default=0.001)
 @click.option("--train_samples", default=100)
 @click.option("--test_samples", default=100)
 @click.option("--epochs", default=3)
 @click.option("--batch_size", default=1)
 @click.option("--optimizer_name", default="SGD")
-@click.option("--save_model", default=False)
+@click.option("--output_dir", default=None)
 def main(
     j,
     lx,
     ly,
-    output_dir,
     lr,
     train_samples,
     test_samples,
     epochs,
     batch_size,
     optimizer_name,
-    save_model,
+    output_dir,
 ):
     ising = Ising2D(j, lx, ly)
     ising(
-        output_dir=output_dir,
         lr=lr,
         train_samples=train_samples,
         test_samples=test_samples,
         epochs=epochs,
         batch_size=batch_size,
         optimizer_name=optimizer_name,
-        save_model=save_model,
+        output_dir=output_dir,
     )
 
 
