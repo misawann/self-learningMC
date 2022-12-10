@@ -1,22 +1,40 @@
 import os
+from typing import Callable
 
+import click
 import matplotlib.pyplot as plt
 import torch
 from torch.nn import MSELoss
+from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
 
 from hamiltonians import ising2d, mean_field
-import click
 
 
 class Ising2D:
-    def __init__(self, J, Lx, Ly):
+    def __init__(self, J: float, Lx: int, Ly: int) -> None:
+        """set basic constants of the system
+
+        Args:
+            J (float): coefficient of spin interaction.
+            Lx (int): lattice size of dimension x.
+            Ly (int): lattice size of dimension x.
+        """
         self.J = J
         self.Lx = Lx
         self.Ly = Ly
 
-    def create_dataloader(self, n_samples, batch_size):
+    def create_dataloader(self, n_samples: int, batch_size: int) -> DataLoader:
+        """create dataloader given samples and batch size
+
+        Args:
+            n_samples (int): number of data to sample.
+            batch_size (int): batch size
+
+        Returns:
+            DataLoader: dataloader for training or evaluation
+        """
         X = 1 - 2 * (torch.rand(n_samples, self.Lx, self.Ly) < 0.5)
         X = X.float()
         Y = torch.FloatTensor([ising2d(x, self.J) for x in X])
@@ -37,7 +55,24 @@ class Ising2D:
         plt.legend()
         plt.show()
 
-    def train_loop(self, dataloader, h, loss_fn, optimizer):
+    def train_loop(
+        self,
+        dataloader: DataLoader,
+        h: torch.Tensor,
+        loss_fn: Callable,
+        optimizer: Optimizer,
+    ) -> float:
+        """training loop
+
+        Args:
+            dataloader (DataLoader): dataloader
+            h (torch.Tensor): coefficients for each spin. (batch size, lattice size x, lattice size y)
+            loss_fn (Callable): loss function
+            optimizer (Optimizer): optimizer
+
+        Returns:
+            float: final loss value
+        """
         for X, Y in tqdm(dataloader, leave=False):
             H_eff = mean_field(X, h)
             loss = loss_fn(Y, H_eff)
@@ -48,15 +83,25 @@ class Ising2D:
 
     def __call__(
         self,
-        output_dir,
-        lr=0.001,
-        train_samples=100,
-        test_samples=100,
-        epochs=3,
-        batch_size=1,
-        optimizer_name="SGD",
-        save_model=False,
-    ):
+        lr: float = 0.001,
+        train_samples: int = 100,
+        test_samples: int = 100,
+        epochs: int = 3,
+        batch_size: int = 1,
+        optimizer_name: str = "SGD",
+        output_dir: str = None,
+    ) -> None:
+        """run optimization
+
+        Args:
+            lr (float, optional): learning rate. Defaults to 0.001.
+            train_samples (int, optional): number of training samples. Defaults to 100.
+            test_samples (int, optional): number of test samples. Defaults to 100.
+            epochs (int, optional): number of training epochs. Defaults to 3.
+            batch_size (int, optional): batch size for both training & evaluation. Defaults to 1.
+            optimizer_name (str, optional): optimizer name. "SGD" & "Adam" can be used. Defaults to "SGD".
+            output_dir (str, optional): output directory. should be specified when saving parameters. Defaults to None.
+        """
         train_dataloader = self.create_dataloader(train_samples, batch_size)
         test_dataloader = self.create_dataloader(test_samples, batch_size)
 
@@ -81,7 +126,7 @@ class Ising2D:
         with torch.no_grad():
             self.plot_res(h, test_dataloader)
 
-        if not save_model:
+        if not output_dir:
             return
 
         if not os.path.exists(output_dir):
