@@ -1,21 +1,19 @@
 import os
 from typing import Callable, List, Tuple, Union
-from abc import ABC, abstractmethod
+
 import torch
 from torch.nn import MSELoss
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from torch.utils.tensorboard import SummaryWriter
 
-
-class Trainer(ABC):
+class Trainer:
     def __init__(self) -> None:
         """set basic constants of the system"""
-        pass
+        raise NotImplementedError("This method should be overridden by derived class.")
 
-    @abstractmethod
     def effective_model(self, X: torch.Tensor, params: torch.Tensor) -> torch.Tensor:
         """calculate effective hamiltonian
 
@@ -26,9 +24,8 @@ class Trainer(ABC):
         Returns:
             torch.Tensor: effective hamiltonian. (batch size)
         """
-        pass
+        raise NotImplementedError("This method should be overridden by derived class.")
 
-    @abstractmethod
     def original_model(self, X: torch.Tensor) -> torch.Tensor:
         """calculate original hamiltonian
 
@@ -38,9 +35,8 @@ class Trainer(ABC):
         Returns:
             torch.Tensor: original hamiltonian. (batch size)
         """
-        pass
+        raise NotImplementedError("This method should be overridden by derived class.")
 
-    @abstractmethod
     def sample_input(self, n_samples: int) -> torch.Tensor:
         """sample input data
 
@@ -50,16 +46,15 @@ class Trainer(ABC):
         Returns:
             torch.Tensor: input data.
         """
-        pass
-
-    @abstractmethod
+        raise NotImplementedError("This method should be overridden by derived class.")
+    
     def init_params(self) -> torch.Tensor:
         """initialize parameters
 
         Returns:
             torch.Tensor: parameters.
         """
-        pass
+        raise NotImplementedError("This method should be overridden by derived class.")
 
     def create_dataloader(self, n_samples: int, batch_size: int) -> DataLoader:
         """create dataloader given samples and batch size
@@ -72,7 +67,7 @@ class Trainer(ABC):
             DataLoader: dataloader for training or evaluation
         """
         X = self.sample_input(n_samples)
-        Y = torch.FloatTensor([self.original_model(x) for x in X])
+        Y = torch.FloatTensor(self.original_model(X))
         ds = TensorDataset(X, Y)
         dataloader = DataLoader(ds, batch_size=batch_size)
         return dataloader
@@ -83,6 +78,7 @@ class Trainer(ABC):
         dataloader: DataLoader,
         loss_fn: Callable,
         optimizer: Optimizer,
+        normalize_const: float = 1.0,
         mode: str = "train",
     ) -> Union[float, Tuple[float, List[float], List[float]]]:
         """loop for training, evaluation and testing
@@ -92,6 +88,7 @@ class Trainer(ABC):
             dataloader (DataLoader): dataloader
             loss_fn (Callable): loss function
             optimizer (Optimizer): optimizer
+            normalize_const (float, optional): normalize constant for loss. Defaults to 1.0.
             mode (str, optional): "train" or "eval". Defaults to "train".
 
         Returns:
@@ -103,10 +100,9 @@ class Trainer(ABC):
         loss_sum = 0.0
         E_original = []
         E_eff = []
-
         for X, Y in tqdm(dataloader, leave=False):
             Y_eff = self.effective_model(X, params)
-            loss = loss_fn(Y, Y_eff)
+            loss = loss_fn(Y / normalize_const, Y_eff / normalize_const)
             if mode == "train":
                 optimizer.zero_grad()
                 loss.backward()
@@ -131,6 +127,7 @@ class Trainer(ABC):
         epochs: int = 3,
         batch_size: int = 1,
         optimizer_name: str = "Adam",
+        normalize_const: float = 1.0,
         save_model=False,
     ) -> Tuple[List[float], List[float]]:
         """run optimization
@@ -143,14 +140,15 @@ class Trainer(ABC):
             test_samples (int, optional): number of test samples. Defaults to 100.
             epochs (int, optional): number of training epochs. Defaults to 3.
             batch_size (int, optional): batch size. Defaults to 1.
+            normalize_const (float, optional): normalize constant for loss. Defaults to 1.0.
             optimizer_name (str, optional): optimizer name. "SGD" & "Adam" can be used. Defaults to "SGD".
 
         Returns:
             Tuple[List[float], List[float]]: energies of original and effective hamiltonian
         """
         train_dataloader = self.create_dataloader(train_samples, batch_size)
-        eval_dataloader = self.create_dataloader(eval_samples, batch_size)
-        test_dataloader = self.create_dataloader(test_samples, batch_size)
+        eval_dataloader = self.create_dataloader(eval_samples, 1)
+        test_dataloader = self.create_dataloader(test_samples, 1)
 
         params = self.init_params()
         loss_fn = MSELoss()
@@ -168,21 +166,36 @@ class Trainer(ABC):
             for epoch in range(epochs):
                 pbar_epoch.set_description("[Epoch %d]" % (epoch + 1))
                 loss = self.loop(
-                    params, train_dataloader, loss_fn, optimizer, mode="train"
+                    params,
+                    train_dataloader,
+                    loss_fn,
+                    optimizer,
+                    normalize_const,
+                    mode="train",
                 )
                 writer.add_scalar("train loss", loss, epoch)
                 tqdm.write(f"train loss at epoch{epoch+1}: {loss}")
 
                 with torch.no_grad():
                     loss = self.loop(
-                        params, eval_dataloader, loss_fn, optimizer, mode="eval"
+                        params,
+                        eval_dataloader,
+                        loss_fn,
+                        optimizer,
+                        normalize_const,
+                        mode="eval",
                     )
                     writer.add_scalar("eval loss", loss, epoch)
                     tqdm.write(f"eval loss at epoch{epoch+1}: {loss}")
 
         with torch.no_grad():
             loss, E_original, E_eff = self.loop(
-                params, test_dataloader, loss_fn, optimizer, mode="test"
+                params,
+                test_dataloader,
+                loss_fn,
+                optimizer,
+                normalize_const,
+                mode="test",
             )
             tqdm.write(f"test loss: {loss}")
 
@@ -227,13 +240,13 @@ class Ising2DTrainer(Trainer):
         Returns:
             torch.Tensor: original Hamiltonian
         """
-        Lx, Ly = X.shape
-        H = 0.0
+        n_data, Lx, Ly = X.shape
+        H = torch.zeros(n_data)
         for i in range(Lx):
             for j in range(Ly):
                 interact = self.neighbor_interact(X, i, j, Lx, Ly)
-                H += interact
-        H *= -self.J / 2  # 1/2 is for double counting
+                H += -self.J * interact
+        H /= 2  # 2 is for double counting
         return H
 
     def neighbor_interact(
@@ -242,7 +255,7 @@ class Ising2DTrainer(Trainer):
         """calculate interaction with neighbors
 
         Args:
-            X (torch.Tensor): spin. (batch size, lattice size x, lattice size y)
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
             i (int): index of position x.
             j (int): index of position y.
             Lx (int): lattice size of dimension x.
@@ -251,11 +264,11 @@ class Ising2DTrainer(Trainer):
         Returns:
             torch.Tensor: interaction with neighbors. (batch size)
         """
-        return X[i, j] * (
-            X[(i + 1) % Lx, j]
-            + X[(i - 1) % Lx, j]
-            + X[i, (j + 1) % Ly]
-            + X[i, (j - 1) % Ly]
+        return X[:, i, j] * (
+            X[:, (i + 1) % Lx, j]
+            + X[:, (i - 1) % Lx, j]
+            + X[:, i, (j + 1) % Ly]
+            + X[:, i, (j - 1) % Ly]
         )
 
     def sample_input(self, n_samples: int) -> torch.Tensor:
@@ -263,5 +276,5 @@ class Ising2DTrainer(Trainer):
         return X.float()
 
     def init_params(self) -> torch.Tensor:
-        h = torch.rand((self.Lx, self.Ly), dtype=torch.float32, requires_grad=True)
+        h = torch.ones((self.Lx, self.Ly), dtype=torch.float32, requires_grad=True)
         return h
