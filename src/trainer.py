@@ -9,10 +9,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 
-class Trainer:
+class BaseTrainer:
     def __init__(self) -> None:
         """set basic constants of the system"""
-        raise NotImplementedError("This method should be overridden by derived class.")
+        pass
 
     def effective_model(self, X: torch.Tensor, params: torch.Tensor) -> torch.Tensor:
         """calculate effective hamiltonian
@@ -47,7 +47,7 @@ class Trainer:
             torch.Tensor: input data.
         """
         raise NotImplementedError("This method should be overridden by derived class.")
-    
+
     def init_params(self) -> torch.Tensor:
         """initialize parameters
 
@@ -205,7 +205,7 @@ class Trainer:
         return E_original, E_eff
 
 
-class Ising2DTrainer(Trainer):
+class Ising2DTrainer(BaseTrainer):
     def __init__(self, J: float, Lx: int, Ly: int) -> None:
         """set basic constants of the system
 
@@ -279,7 +279,8 @@ class Ising2DTrainer(Trainer):
         h = torch.ones((self.Lx, self.Ly), dtype=torch.float32, requires_grad=True)
         return h
 
-class Spin4InteractionTrainer(Trainer):
+
+class Spin4InteractionTrainer(BaseTrainer):
     def __init__(self, J, K, Lx, Ly) -> None:
         self.J = J
         self.K = K
@@ -333,14 +334,6 @@ class Spin4InteractionTrainer(Trainer):
         else:
             NotImplementedError
 
-    def sample_input(self, n_samples):
-        X = 1 - 2 * (torch.rand(n_samples, self.Lx, self.Ly) < 0.5)
-        return X.float()
-
-    def init_params(self):
-        h = torch.ones(4, dtype=torch.float32, requires_grad=True)
-        return h
-
     def interact_cell(self, X, i, j, Lx, Ly):
         return X[:, i, j] * (
             X[:, (i + 1) % Lx, j]
@@ -356,3 +349,11 @@ class Spin4InteractionTrainer(Trainer):
             * X[:, i, (j - 1) % Ly]
             * X[:, (i - 1) % Lx, (j - 1) % Ly]
         )
+
+    def sample_input(self, n_samples):
+        X = 1 - 2 * (torch.rand(n_samples, self.Lx, self.Ly) < 0.5)
+        return X.float()
+
+    def init_params(self):
+        h = torch.ones(4, dtype=torch.float32, requires_grad=True)
+        return h
