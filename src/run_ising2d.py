@@ -1,7 +1,9 @@
 import os
+
+import click
+
 from trainer import Ising2DTrainer
 from utils import plot_sorted_energy
-import click
 
 
 @click.command()
