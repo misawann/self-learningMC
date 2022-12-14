@@ -278,3 +278,81 @@ class Ising2DTrainer(Trainer):
     def init_params(self) -> torch.Tensor:
         h = torch.ones((self.Lx, self.Ly), dtype=torch.float32, requires_grad=True)
         return h
+
+class Spin4InteractionTrainer(Trainer):
+    def __init__(self, J, K, Lx, Ly) -> None:
+        self.J = J
+        self.K = K
+        self.Lx = Lx
+        self.Ly = Ly
+
+    def effective_model(self, X, params):
+        batch_size = X.shape[0]
+        max_n = params.shape[0]
+        interact = torch.zeros((batch_size, max_n - 1))
+        for i in range(self.Lx):
+            for j in range(self.Ly):
+                interact -= torch.stack(
+                    [
+                        self.neighbor_interact(n, X, i, j, self.Lx, self.Ly)
+                        for n in range(1, max_n)
+                    ],
+                    dim=1,
+                )
+        interact /= 2  # 2 is for double counting
+        interact = torch.concat((torch.ones((batch_size, 1)), interact), dim=1)
+        H = torch.einsum("bx,x->b", interact, params)
+        return H
+
+    def original_model(self, X: torch.Tensor) -> torch.Tensor:
+        n_data, Lx, Ly = X.shape
+        H = torch.zeros(n_data)
+        for i in range(Lx):
+            for j in range(Ly):
+                H += (
+                    -self.J * self.neighbor_interact(1, X, i, j, self.Lx, self.Ly) / 2
+                    - self.K * self.interact_cell(X, i, j, self.Lx, self.Ly) / 4
+                )
+        return H
+
+    def neighbor_interact(self, n, X, i, j, Lx, Ly):
+        if n != 2:
+            return X[:, i, j] * (
+                X[:, (i + n) % Lx, j]
+                + X[:, (i - n) % Lx, j]
+                + X[:, i, (j + n) % Ly]
+                + X[:, i, (j - n) % Ly]
+            )
+        elif n == 2:
+            return X[:, i, j] * (
+                X[:, (i + 1) % Lx, (j + 1) % Ly]
+                + X[:, (i + 1) % Lx, (j - 1) % Ly]
+                + X[:, (i - 1) % Lx, (j + 1) % Ly]
+                + X[:, (i - 1) % Lx, (j - 1) % Ly]
+            )
+        else:
+            NotImplementedError
+
+    def sample_input(self, n_samples):
+        X = 1 - 2 * (torch.rand(n_samples, self.Lx, self.Ly) < 0.5)
+        return X.float()
+
+    def init_params(self):
+        h = torch.ones(4, dtype=torch.float32, requires_grad=True)
+        return h
+
+    def interact_cell(self, X, i, j, Lx, Ly):
+        return X[:, i, j] * (
+            X[:, (i + 1) % Lx, j]
+            * X[:, i, (j + 1) % Ly]
+            * X[:, (i + 1) % Lx, (j + 1) % Ly]
+            + X[:, (i - 1) % Lx, j]
+            * X[:, i, (j + 1) % Ly]
+            * X[:, (i - 1) % Lx, (j + 1) % Ly]
+            + X[:, (i + 1) % Lx, j]
+            * X[:, i, (j - 1) % Ly]
+            * X[:, (i + 1) % Lx, (j - 1) % Ly]
+            + X[:, (i - 1) % Lx, j]
+            * X[:, i, (j - 1) % Ly]
+            * X[:, (i - 1) % Lx, (j - 1) % Ly]
+        )
