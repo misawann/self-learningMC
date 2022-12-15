@@ -303,7 +303,7 @@ class Spin4InteractionTrainer(BaseTrainer):
             params (torch.Tensor): parameters. (number of parameters)
 
         Returns:
-            torch.Tensor: energy of effective model. (number of data)
+            torch.Tensor: energy of effective Hamiltonian. (number of data)
         """
         batch_size = X.shape[0]
         max_n = params.shape[0]
