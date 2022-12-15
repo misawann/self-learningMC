@@ -15,25 +15,25 @@ class BaseTrainer:
         pass
 
     def effective_model(self, X: torch.Tensor, params: torch.Tensor) -> torch.Tensor:
-        """calculate effective hamiltonian
+        """effective hamiltonian
 
         Args:
             X (torch.Tensor): input data.
             params (torch.Tensor): parameters.
 
         Returns:
-            torch.Tensor: effective hamiltonian. (batch size)
+            torch.Tensor: energy of effective hamiltonian. (number of data)
         """
         raise NotImplementedError("This method should be overridden by derived class.")
 
     def original_model(self, X: torch.Tensor) -> torch.Tensor:
-        """calculate original hamiltonian
+        """original hamiltonian
 
         Args:
             X (torch.Tensor): input data.
 
         Returns:
-            torch.Tensor: original hamiltonian. (batch size)
+            torch.Tensor: energy of original hamiltonian. (number of data)
         """
         raise NotImplementedError("This method should be overridden by derived class.")
 
@@ -222,11 +222,11 @@ class Ising2DTrainer(BaseTrainer):
         """mean field Hamiltonian of 2D Ising model
 
         Args:
-            X (torch.Tensor): spin. (batch size, lattice size x, lattice size y)
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
             params (torch.Tensor): coefficients for each spin. (lattice size x, lattice size y)
 
         Returns:
-            torch.Tensor: mean field Hamiltonian
+            torch.Tensor: energy of mean field Hamiltonian. (number of data)
         """
         H = -torch.einsum("bxy,xy->b", X, params)
         return H
@@ -235,10 +235,10 @@ class Ising2DTrainer(BaseTrainer):
         """original Hamiltonian of 2D Ising model
 
         Args:
-            X (torch.Tensor): spin. (batch size, lattice size x, lattice size y)
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
 
         Returns:
-            torch.Tensor: original Hamiltonian
+            torch.Tensor: energy of original Hamiltonian. (number of data)
         """
         n_data, Lx, Ly = X.shape
         H = torch.zeros(n_data)
@@ -262,7 +262,7 @@ class Ising2DTrainer(BaseTrainer):
             Ly (int): lattice size of dimension y.
 
         Returns:
-            torch.Tensor: interaction with neighbors. (batch size)
+            torch.Tensor: interaction with neighbors. (number of data)
         """
         return X[:, i, j] * (
             X[:, (i + 1) % Lx, j]
@@ -281,13 +281,22 @@ class Ising2DTrainer(BaseTrainer):
 
 
 class Spin4InteractionTrainer(BaseTrainer):
-    def __init__(self, J, K, Lx, Ly) -> None:
+    def __init__(self, J: float, K: float, Lx: int, Ly: int) -> None:
         self.J = J
         self.K = K
         self.Lx = Lx
         self.Ly = Ly
 
-    def effective_model(self, X, params):
+    def effective_model(self, X: torch.Tensor, params: torch.Tensor) -> torch.Tensor:
+        """effective model
+
+        Args:
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
+            params (torch.Tensor): parameters. (number of parameters)
+
+        Returns:
+            torch.Tensor: energy of effective model. (number of data)
+        """
         batch_size = X.shape[0]
         max_n = params.shape[0]
         interact = torch.zeros((batch_size, max_n - 1))
@@ -306,6 +315,14 @@ class Spin4InteractionTrainer(BaseTrainer):
         return H
 
     def original_model(self, X: torch.Tensor) -> torch.Tensor:
+        """original Hamiltonian
+
+        Args:
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
+
+        Returns:
+            torch.Tensor: original Hamiltonian. (number of data)
+        """
         n_data, Lx, Ly = X.shape
         H = torch.zeros(n_data)
         for i in range(Lx):
@@ -316,7 +333,23 @@ class Spin4InteractionTrainer(BaseTrainer):
                 )
         return H
 
-    def neighbor_interact(self, n, X, i, j, Lx, Ly):
+    def neighbor_interact(
+        self, n: int, X: torch.Tensor, i: int, j: int, Lx: int, Ly: int
+    ) -> torch.Tensor:
+        """calculate interaction with neighbors
+
+        Args:
+            n (int): n th neighbor
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
+            i (int): index of position x.
+            j (int): index of position y.
+            Lx (int): lattice size of dimension x.
+            Ly (int): lattice size of dimension y.
+
+        Returns:
+            torch.Tensor: interaction with neighbors. (number of data)
+        """
+
         if n != 2:
             return X[:, i, j] * (
                 X[:, (i + n) % Lx, j]
@@ -334,7 +367,21 @@ class Spin4InteractionTrainer(BaseTrainer):
         else:
             NotImplementedError
 
-    def interact_cell(self, X, i, j, Lx, Ly):
+    def interact_cell(
+        self, X: torch.Tensor, i: int, j: int, Lx: int, Ly: int
+    ) -> torch.Tensor:
+        """calculate interaction in a cell
+
+        Args:
+            X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
+            i (int): index of position x.
+            j (int): index of position y.
+            Lx (int): lattice size of dimension x.
+            Ly (int): lattice size of dimension y.
+
+        Returns:
+            torch.Tensor: interaction with neighbors. (number of data)
+        """
         return X[:, i, j] * (
             X[:, (i + 1) % Lx, j]
             * X[:, i, (j + 1) % Ly]
@@ -350,7 +397,7 @@ class Spin4InteractionTrainer(BaseTrainer):
             * X[:, (i - 1) % Lx, (j - 1) % Ly]
         )
 
-    def sample_input(self, n_samples):
+    def sample_input(self, n_samples: int):
         X = 1 - 2 * (torch.rand(n_samples, self.Lx, self.Ly) < 0.5)
         return X.float()
 
