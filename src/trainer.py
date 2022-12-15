@@ -329,7 +329,7 @@ class Spin4InteractionTrainer(BaseTrainer):
             X (torch.Tensor): spin. (number of data, lattice size x, lattice size y)
 
         Returns:
-            torch.Tensor: original Hamiltonian. (number of data)
+            torch.Tensor: energy of original Hamiltonian. (number of data)
         """
         n_data, Lx, Ly = X.shape
         H = torch.zeros(n_data)
