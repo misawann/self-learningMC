@@ -282,6 +282,14 @@ class Ising2DTrainer(BaseTrainer):
 
 class Spin4InteractionTrainer(BaseTrainer):
     def __init__(self, J: float, K: float, Lx: int, Ly: int) -> None:
+        """set basic constants of the system
+
+        Args:
+            J (float): coefficient of 2 spin interaction.
+            K (float): coefficient of 4 spin interaction.
+            Lx (int): lattice size of dimension x.
+            Ly (int): lattice size of dimension x.
+        """
         self.J = J
         self.K = K
         self.Lx = Lx
