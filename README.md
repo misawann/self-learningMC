@@ -18,8 +18,6 @@ Implementation of "Self-learning Monte Carlo method", Liu et al (2017)
   - effective model
     $$H_{\mathrm{trial}} = E_0 - \tilde{J}_1\sum_{\langle i, j \rangle_1} \sigma_i \sigma_j - \tilde{J}_2\sum_{\langle i, j \rangle_2} \sigma_i\sigma_j - \tilde{J}_3\sum_{\langle i, j \rangle_3}\sigma_i\sigma_j$$
 
-![4 spin interaction model](https://github.com/misawann/self-learningMC/blob/main/images/4spin_interaction_sorted_energy.png)
-
 ## implemented algorithms
 
 - [x] Metropolis algorithm
